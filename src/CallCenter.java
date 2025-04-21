@@ -1,106 +1,128 @@
-/*
-    You can import any additional package here.
- */
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
+
 import static java.lang.Thread.sleep;
 
 public class CallCenter {
 
-    /*
-       Total number of customers that each agent will serve in this simulation.
-       (Note that an agent can only serve one customer at a time.)
-     */
     private static final int CUSTOMERS_PER_AGENT = 5;
-
-    /*
-       Total number of agents.
-     */
     private static final int NUMBER_OF_AGENTS = 3;
-
-    /*
-       Total number of customers to create for this simulation.
-     */
     private static final int NUMBER_OF_CUSTOMERS = NUMBER_OF_AGENTS * CUSTOMERS_PER_AGENT;
-
-    /*
-      Number of threads to use for this simulation.
-     */
     private static final int NUMBER_OF_THREADS = 10;
 
 
-    /*
-       The Agent class.
-     */
+    private static final BlockingQueue<Customer> waitQueue = new LinkedBlockingQueue<>();
+    private static final BlockingQueue<Customer> serveQueue = new LinkedBlockingQueue<>();
+
     public static class Agent implements Runnable {
-    //TODO: complete the agent class
-        //The ID of the agent
         private final int ID;
 
-        //Feel free to modify the constructor
         public Agent(int i) {
             ID = i;
         }
-        /*
-        Your implementation must call the method below to serve each customer.
-        Do not modify this method.
-         */
+
         public void serve(int customerID) {
             System.out.println("Agent " + ID + " is serving customer " + customerID);
             try {
-                /*
-                   Simulate busy serving a customer by sleeping for a random amount of time.
-                */
                 sleep(ThreadLocalRandom.current().nextInt(10, 1000));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            int customersServed = 0;
+            while (customersServed < CUSTOMERS_PER_AGENT) {
+                try {
+                    Customer customer = serveQueue.take();
+                    serve(customer.ID);
+                    customersServed++;
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static class Greeter implements Runnable {
+        public void greet(int customerID) {
+            System.out.println("Greeting customer " + customerID);
+            try {
+                sleep(ThreadLocalRandom.current().nextInt(10, 1000));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void run() {
+            int customersGreeted = 0;
+            while (customersGreeted < NUMBER_OF_CUSTOMERS) {
+                try {
+                    Customer customer = waitQueue.take();
+                    greet(customer.ID);
+                    serveQueue.put(customer);
+                    System.out.println("Customer " + customer.ID + " is now in serve queue at position " + serveQueue.size());
+                    customersGreeted++;
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
+    public static class Customer implements Runnable {
+        private final int ID;
+
+        public Customer(int i) {
+            ID = i;
+        }
+
+        public void run() {
+            try {
+                waitQueue.put(this);
+                System.out.println("Customer " + ID + " has entered the wait queue");
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    /*
-        The greeter class.
-     */
-    public static class Greeter implements Runnable{
-    //TODO: complete the Greeter class
+    public static void main(String[] args) {
 
-     /*
-        Your implementation must call the method below to serve each customer.
-        Do not modify this method.
-         */
-        public void greet(int customerID) {
-            System.out.println("Greeting customer " + customerID);
-                try {
-                    /*
-                    Simulate busy serving a customer by sleeping for a random amount of time.
-                    */
-                    sleep(ThreadLocalRandom.current().nextInt(10, 1000));
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
+        ExecutorService executor = Executors.newFixedThreadPool(NUMBER_OF_THREADS);
+
+
+        executor.submit(new Greeter());
+
+
+        for (int i = 0; i < NUMBER_OF_AGENTS; i++) {
+            executor.submit(new Agent(i + 1));
+        }
+
+
+        for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+            executor.submit(new Customer(i + 1));
+
+
+            try {
+                sleep(ThreadLocalRandom.current().nextInt(10, 500));
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
-    }
 
-    /*
-        The customer class.
-     */
-    public static class Customer implements Runnable {
-    //TODO: complete the Customer class
-        //The ID of the customer.
-        private final int ID;
+        executor.shutdown();
 
 
-        //Feel free to modify the constructor
-        public Customer (int i){
-            ID = i;
+        while (!executor.isTerminated()) {
+            try {
+                sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
-    }
 
-    /*
-        Create the greeter and agents tasks first, and then create the customer tasks.
-        to simulate a random interval between customer calls, sleep for a random period after creating each customer task.
-     */
-    public static void main(String[] args){
-    //TODO: complete the main method
+        System.out.println("Call center simulation completed.");
     }
-
 }
